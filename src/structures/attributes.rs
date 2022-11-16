@@ -1,14 +1,6 @@
 //! Parsed attributes
 
-pub enum Attribute {
-
-}
+pub enum Attribute {}
 
 /// The code attribute
-pub struct Code {
-
-
-
-
-
-}
+pub struct Code {}

@@ -7,7 +7,7 @@ use nom::number::complete::be_u16;
 use std::ops::Index;
 use values::{
     Class, Double, FieldRef, Float, Integer, InterfaceMethodRef, InvokeDynamic, Long, MethodHandle,
-    MethodRef, MethodType, NameAndType, Utf8,
+    MethodRef, MethodType, NameAndType, StringValue, Utf8,
 };
 
 pub mod parser;
@@ -38,7 +38,7 @@ pub enum ConstantPoolInfo {
     FieldRef(FieldRef),
     MethodRef(MethodRef),
     InterfaceMethodRef(InterfaceMethodRef),
-    String(values::StringValue),
+    String(StringValue),
     Integer(Integer),
     Float(Float),
     Long(Long),

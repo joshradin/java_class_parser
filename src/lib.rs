@@ -1,8 +1,22 @@
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+//! # Java Class Parser
+//! Provides an easy to use interface to inspect the bytecode contents of a compiled `.class` file
+//! intended for use in the JVM.
+//!
+//! There are two main ways to parse java files
+//! 1. Directly via the [`parse_file`](crate::parse_file) and [`parse_bytes`](crate::parse_bytes) functions
+//! 2. Indirectly via the [`JavaClassParser`]. Using the parser, one can load an entire java classpath
+//! then request classes via relative path. The java class that is used would follow the same result
+//! that a classloader would find.
+//!
+//! This library provides a safe way of accessing constants within the a java class's constant pool.
+//!
+//! **In no way does this library provide mechanisms to write, compile, or modify java class files**
+
 use crate::constant_pool::values::{Class, StringValue};
 use crate::constant_pool::{ConstantPool, ConstantPoolInfo};
 use crate::raw_java_class::RawJavaClass;
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 
@@ -16,14 +30,21 @@ pub use structures::*;
 pub mod attributes;
 
 /// Parses java classes from `.class` files. Produces a [`JavaClass`][crate::JavaClass] if successful.
+///
+/// Can created with a given classpath in order to refer to classes by their fully qualified names,
+/// which corresponds to their relative path within the classpath.
+///
+/// Supported classpath members:
+/// - Direct classes (ie `../com/example/Test.class`)
+/// - Directories
+/// - Jar files
 #[derive(Debug, Default)]
 pub struct JavaClassParser {
     class_path: HashSet<PathBuf>,
-    cache: HashMap<PathBuf, JavaClass>
+    cache: HashMap<PathBuf, JavaClass>,
 }
 
 impl JavaClassParser {
-
     /// Parses a java class by file type
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<JavaClass, error::Error> {
         let bytes = std::fs::read(path)?;
@@ -31,15 +52,31 @@ impl JavaClassParser {
         Ok(JavaClass(raw_class))
     }
 
-    /// Creates a new java class parser with a given classpath
-    pub fn new<S : AsRef<str>>(classpath: S) -> Self {
+    /// Creates a new java class parser with a given classpath.
+    ///
+    /// # Warning
+    /// The classpath always uses a `;` marker for separation. This library doesn't provide any
+    /// mechanisms for checking for a valid classpath. If you want to ensure safety over paths,
+    /// a java class parser can also be built over an iterator of paths.
+    ///
+    /// # Example
+    /// ```
+    /// # use java_class_parser::JavaClassParser;
+    /// let parser = JavaClassParser::new("jar1.jar;jar2.jar");
+    /// ```
+    pub fn new<S: AsRef<str>>(classpath: S) -> Self {
         Self {
-            class_path: classpath.as_ref().split(";").map(|s| PathBuf::from(s)).collect(),
+            class_path: classpath
+                .as_ref()
+                .split(";")
+                .map(|s| PathBuf::from(s))
+                .collect(),
             ..Default::default()
         }
     }
 
-    /// Finds a class based on a fully qualified path.
+    /// Finds a class based on a fully qualified path within the classpath that
+    /// this parser was create with.
     ///
     /// For example, if the given classpath contains some directory `output`
     /// ```text
@@ -53,11 +90,9 @@ impl JavaClassParser {
     /// result in the `output/com/example/Square.class` file being parsed. This also works
     /// if a file on the classpath is a jar file.
     ///
-    pub fn find<P : AsRef<Path>>(&mut self, path: P) -> Result<JavaClass, error::Error> {
+    pub fn find<P: AsRef<Path>>(&mut self, path: P) -> Result<JavaClass, error::Error> {
         match self.cache.entry(path.as_ref().to_path_buf()) {
-            Entry::Occupied(o) => {
-                Ok(o.get().clone())
-            }
+            Entry::Occupied(o) => Ok(o.get().clone()),
             Entry::Vacant(v) => {
                 todo!()
             }
@@ -65,13 +100,35 @@ impl JavaClassParser {
     }
 }
 
-impl<P : AsRef<Path>> FromIterator<P> for JavaClassParser {
-    fn from_iter<T: IntoIterator<Item=P>>(iter: T) -> Self {
+impl<P: AsRef<Path>> FromIterator<P> for JavaClassParser {
+    fn from_iter<T: IntoIterator<Item = P>>(iter: T) -> Self {
         Self {
             class_path: iter.into_iter().map(|p| p.as_ref().to_path_buf()).collect(),
             ..Default::default()
         }
     }
+}
+
+/// Parses a java class at a given path.
+///
+/// This is a convenience function over [`JavaClassParser::parse_file`](JavaClassParser::parse_file).
+pub fn parse_file<P: AsRef<Path>>(path: &P) -> Result<JavaClass, error::Error> {
+    JavaClassParser::parse_file(path)
+}
+
+/// Directly parses a buffer of bytes to produce a class.
+///
+/// # Error
+/// Will return an error if the given byte array is not a valid java class
+///
+/// # Example
+/// ```
+/// let buffer = b"asdf"; // invalid
+/// assert!(matches!(java_class_parser::parse_bytes(buffer), Err(_)));
+/// ```
+pub fn parse_bytes(bytes: &[u8]) -> Result<JavaClass, error::Error> {
+    let raw_class = raw_java_class::parse_class_file_bytes(&bytes)?;
+    Ok(JavaClass(raw_class))
 }
 
 /// A java class
@@ -112,7 +169,7 @@ impl JavaClass {
         self.get_at_index(index)
             .and_then(|info| match_as!(utf; ConstantPoolInfo::Utf8(utf) = info))
             .map(|s| {
-                Signature::from_str(s.as_ref())
+                Signature::new(s.as_ref())
                     .unwrap_or_else(|e| panic!("{} is invalid as signature: {}", s, e))
             })
     }
@@ -177,13 +234,12 @@ impl Display for JavaClass {
 
 #[cfg(test)]
 mod tests {
-    use crate::JavaClassParser;
+    use crate::{JavaClassParser, MethodSignature, Signature};
     use std::env;
     use std::path::PathBuf;
 
     #[test]
     fn parse_class() {
-
         let file = PathBuf::new()
             .join(env::var("OUT_DIR").unwrap())
             .join("com/example/Square.class");
@@ -205,5 +261,10 @@ mod tests {
         println!("{:#}", class);
 
         println!("methods = {:#?}", class.methods());
+        let methods = class.methods();
+        let init = methods.iter().find(|i| i.name() == "<init>").expect("all classes should have <init>");
+        let MethodSignature { ret_type, args } = init.signature();
+        assert_eq!(ret_type, &Signature::Void, "constructors always have void return type");
+        assert_eq!(args, &[Signature::Double]);
     }
 }
