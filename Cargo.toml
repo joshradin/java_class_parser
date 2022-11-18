@@ -4,7 +4,7 @@ description = "provides a way of easily parsing and analyzing java classes"
 authors = ["joshua radin <jradin16@gmail.com>"]
 repository = "https://github.com/joshradin/java_class_parser"
 license-file = "license"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2021"
 rust-version = "1.65"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
