@@ -1,13 +1,13 @@
+use nom::branch::alt;
 use nom::bytes::complete::{tag, take_till, take_while};
+use nom::character::{is_alphabetic, is_alphanumeric};
 use nom::combinator::{eof, map};
+use nom::error::ErrorKind;
 use nom::multi::{many0, many1, separated_list1};
 use nom::sequence::{delimited, preceded, tuple};
 use nom::IResult;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use nom::branch::alt;
-use nom::character::{is_alphabetic, is_alphanumeric};
-use nom::error::ErrorKind;
 
 /// A signature
 #[derive(Debug, PartialEq)]
@@ -33,30 +33,14 @@ impl<'a> Signature<'a> {
     /// emits this signature as JNI
     fn jni(&self) -> String {
         match self {
-            Signature::Boolean => {
-                "Z".to_string()
-            }
-            Signature::Byte => {
-                "B".to_string()
-            }
-            Signature::Char => {
-                "C".to_string()
-            }
-            Signature::Short => {
-                "S".to_string()
-            }
-            Signature::Int => {
-                "I".to_string()
-            }
-            Signature::Long => {
-                "J".to_string()
-            }
-            Signature::Float => {
-                "F".to_string()
-            }
-            Signature::Double => {
-                "D".to_string()
-            }
+            Signature::Boolean => "Z".to_string(),
+            Signature::Byte => "B".to_string(),
+            Signature::Char => "C".to_string(),
+            Signature::Short => "S".to_string(),
+            Signature::Int => "I".to_string(),
+            Signature::Long => "J".to_string(),
+            Signature::Float => "F".to_string(),
+            Signature::Double => "D".to_string(),
             Signature::FullyQualifiedClass(f) => {
                 format!("L{f};")
             }
@@ -64,16 +48,13 @@ impl<'a> Signature<'a> {
                 format!("[{}", array.jni())
             }
             Signature::Method { args, ret_type } => {
-                format!("({}){}",
-                    args.iter()
-                        .map(|s| s.jni())
-                        .collect::<String>(),
+                format!(
+                    "({}){}",
+                    args.iter().map(|s| s.jni()).collect::<String>(),
                     ret_type.jni()
                 )
             }
-            Signature::Void => {
-                "V".to_string()
-            }
+            Signature::Void => "V".to_string(),
         }
     }
 
@@ -97,11 +78,21 @@ impl Display for Signature<'_> {
             Signature::Char => {
                 write!(f, "char")
             }
-            Signature::Short => {write!(f, "short")}
-            Signature::Int => {write!(f, "int")}
-            Signature::Long => {write!(f, "long")}
-            Signature::Float => {write!(f, "float")}
-            Signature::Double => {write!(f, "double")}
+            Signature::Short => {
+                write!(f, "short")
+            }
+            Signature::Int => {
+                write!(f, "int")
+            }
+            Signature::Long => {
+                write!(f, "long")
+            }
+            Signature::Float => {
+                write!(f, "float")
+            }
+            Signature::Double => {
+                write!(f, "double")
+            }
             Signature::FullyQualifiedClass(fqc) => {
                 write!(f, "{}", fqc)
             }
@@ -109,7 +100,10 @@ impl Display for Signature<'_> {
                 write!(f, "{}[]", array)
             }
             Signature::Method { args, ret_type } => {
-                write!(f, "{} ({})", ret_type,
+                write!(
+                    f,
+                    "{} ({})",
+                    ret_type,
                     args.iter()
                         .map(|s| s.to_string())
                         .collect::<Vec<_>>()
@@ -148,12 +142,11 @@ fn parse_signature(string: &str) -> IResult<&str, Signature> {
             )),
             |(args, ret_type)| Signature::Method {
                 args: args.into_boxed_slice(),
-                ret_type: Box::new(ret_type)
+                ret_type: Box::new(ret_type),
             },
         ),
     ))(string)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -166,9 +159,7 @@ mod tests {
             parsed,
             Signature::Method {
                 args: vec![Signature::Boolean, Signature::Int].into_boxed_slice(),
-                ret_type: Box::new(Signature::FullyQualifiedClass(
-                    "java/lang/Object"
-                ))
+                ret_type: Box::new(Signature::FullyQualifiedClass("java/lang/Object"))
             }
         );
         assert_eq!(parsed.jni(), jni);

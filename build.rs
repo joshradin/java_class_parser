@@ -32,5 +32,4 @@ fn main() {
         println!("cargo:warn={:#?} did not successfully pass", cmd);
         panic!("javac failed: {}", String::from_utf8_lossy(&res.stderr))
     }
-
 }

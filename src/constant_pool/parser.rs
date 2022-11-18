@@ -6,7 +6,7 @@ use crate::constant_pool::{ConstantPool, ConstantPoolInfo};
 use crate::error::Error;
 use crate::error::ErrorKind;
 use crate::raw_java_class::{RawAttributeInfo, RawFieldInfo, RawJavaClass, RawMethodInfo};
-use crate::JavaClass;
+use crate::structures::class::JavaClass;
 use nom::bytes::complete::take;
 use nom::combinator::{eof, map};
 use nom::error::ParseError;

@@ -12,4 +12,9 @@ public class Square extends Rectangle implements Comparable<Square> {
         return this.getArea() - other.getArea() > 0.0 ? 1 : -1;
     }
 
+    @Deprecated
+    public boolean isSquare() {
+        return true;
+    }
+
 }
