@@ -7,6 +7,7 @@ public class Square extends Rectangle implements Comparable<Square> {
         super(length, length);
     }
 
+
     @Override
     public int compareTo(Square other) {
         return this.getArea() - other.getArea() > 0.0 ? 1 : -1;

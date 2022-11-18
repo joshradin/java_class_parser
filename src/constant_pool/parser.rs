@@ -199,7 +199,7 @@ mod tests {
     fn parse_class() {
         let file = PathBuf::new()
             .join(env::var("OUT_DIR").unwrap())
-            .join("Square.class");
+            .join("com/example/Square.class");
         let bytes =
             fs::read(&file).unwrap_or_else(|_| panic!("couldn't read bytes at path {:?}", file));
 
