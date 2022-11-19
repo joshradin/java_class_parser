@@ -1,35 +1,44 @@
-use std::env;
-use std::ffi::OsStr;
-use std::fs::{DirEntry, FileType};
+#![allow(warnings)]
+
+
+use std::path::{Path, PathBuf};
 use std::process::Command;
-use walkdir::WalkDir;
+use fs_extra::dir::CopyOptions;
+
+static JAVA_PATH: &str = "./java";
 
 fn main() {
-    /// only compile for integration tests
-    println!("cargo:rerun-if-changed=src/java");
+    // only compile for integration tests
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=java/");
 
-    let dir = WalkDir::new("src/java");
 
-    let mut java_files = vec![];
+    let ref out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let ref java_output_path = out_dir.join("java");
+    std::fs::remove_dir_all(java_output_path).expect("couldn't remove dir");
+    let mut options = CopyOptions::new();
+    options.copy_inside = true;
+    fs_extra::copy_items(
+        &[Path::new(JAVA_PATH)],
+        &java_output_path,
+        &options
+    ).expect("could not copy");
 
-    for entry in dir {
-        let entry = entry.unwrap();
-        println!("cargo:warn=entry={:?}", entry);
-        if entry.file_type().is_file() && entry.path().extension() == Some(OsStr::new("java")) {
-            java_files.push(entry.path().to_path_buf());
-        }
+    // create jar
+    let gradle_assemble = Command::new("./gradlew")
+        .current_dir(&java_output_path)
+        .arg("assemble")
+        .spawn()
+        .expect("could not run gradle wrapper")
+        .wait()
+        .expect("did not finish");
+    if !gradle_assemble.success() {
+        panic!("failed to run gradlew assemble")
     }
 
-    let mut cmd = Command::new("javac");
-    println!("cargo:warn=compiling {:?}", java_files);
-    let res = cmd
-        .args(["-d", &std::env::var("OUT_DIR").unwrap()])
-        .args(java_files)
-        .output()
-        .expect("couldn't successfully run javac");
-    if !res.status.success() {
-        println!("cargo:warn={:#?} did not successfully pass", cmd);
-        panic!("javac failed: {}", String::from_utf8_lossy(&res.stderr))
-    }
+    std::fs::copy(
+        java_output_path.join("build/libs/java.jar"),
+        out_dir.join("java.jar")
+    ).expect("couldn't copy");
+
 }

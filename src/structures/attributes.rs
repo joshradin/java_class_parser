@@ -1,36 +1,41 @@
 //! Parsed attributes
 
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use crate::class::JavaClass;
 use crate::constant_pool::parser::parse_attribute_info;
 use crate::raw_java_class::RawAttributeInfo;
 use crate::utility::match_as;
-use crate::{ConstantPoolInfo, HasAttributes};
 use crate::FullyQualifiedName;
+use crate::{ConstantPoolInfo, HasAttributes};
+use crate::{JavaClass, Signature};
 use byteorder::ByteOrder;
 use nom::bytes::complete::take;
-use nom::combinator::{complete, flat_map, map, map_res};
+use nom::combinator::{complete, flat_map, map};
 use nom::multi::count;
 use nom::number::complete::{be_u16, be_u32};
 use nom::sequence::tuple;
 use nom::{Finish, IResult};
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::path::Path;
 
 /// An attribute info piece. Can be parsed into usable data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Attribute<'a> {
     attribute_name: &'a str,
     kind: AttributeKind<'a>,
 }
 
 /// The kind of attribute
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AttributeKind<'a> {
+    /// A source file
     SourceFile(&'a Path),
-    Signature(&'a str),
+    /// A signature
+    Signature(Signature<'a>),
+    /// Java bytecode
     Code(Code<'a>),
+    /// A line number table helps map bytecode to original line numbers
     LineNumberTable(LineNumberTable),
+    /// Deprecated
     Deprecated,
     /// An unknown attribute
     Unknown(&'a [u8]),
@@ -53,7 +58,8 @@ impl<'a> Attribute<'a> {
             "Signature" => {
                 let index = byteorder::BigEndian::read_u16(bytes);
                 let utf8 = class.get_string(index).ok_or(error())?;
-                AttributeKind::Signature(utf8)
+                let signature = Signature::new(utf8).map_err(|_| error())?;
+                AttributeKind::Signature(signature)
             }
             "Code" => {
                 let (_, code) = parse_code_attr(bytes, class).finish().unwrap();
@@ -65,13 +71,12 @@ impl<'a> Attribute<'a> {
                         count(tuple((be_u16, be_u16)), length as usize)
                     })(bytes)
                 };
-                let (_, lines) = parser(bytes)
-                    .finish().unwrap();
-                AttributeKind::LineNumberTable(LineNumberTable { line_number_table: lines.into_boxed_slice() })
+                let (_, lines) = parser(bytes).finish().unwrap();
+                AttributeKind::LineNumberTable(LineNumberTable {
+                    line_number_table: lines.into_boxed_slice(),
+                })
             }
-            "Deprecated" => {
-                AttributeKind::Deprecated
-            }
+            "Deprecated" => AttributeKind::Deprecated,
             _ => AttributeKind::Unknown(bytes),
         };
         Ok(Self {
@@ -108,23 +113,48 @@ impl ResolveAttributeError {
 }
 
 /// The code attribute
+#[derive(Clone)]
 pub struct Code<'a> {
     class: &'a JavaClass,
     max_stack: u16,
     max_locals: u16,
     code: &'a [u8],
-    exception_table: Box<[Exception<'a>]>,
+    exception_table: Vec<Exception<'a>>,
     attributes: Box<[RawAttributeInfo]>,
+}
+
+impl<'a> Code<'a> {
+    /// The maximum stack values
+    pub fn max_stack(&self) -> u16 {
+        self.max_stack
+    }
+    /// The maximum numbers of locals used
+    pub fn max_locals(&self) -> u16 {
+        self.max_locals
+    }
+
+    /// The bytecode
+    pub fn code(&self) -> &'a [u8] {
+        self.code
+    }
+
+    /// The exceptions that can occur in the code
+    pub fn exception_table(&self) -> &[Exception<'a>] {
+        &self.exception_table[..]
+    }
 }
 
 impl HasAttributes for Code<'_> {
     type Iter<'a> = <Vec<Attribute<'a>> as IntoIterator>::IntoIter where Self: 'a;
 
     fn attributes<'a>(&'a self) -> Self::Iter<'a> {
-        self.attributes.iter()
-            .map(|raw| self.class.create_attribute(
-                raw.attribute_name_index, &raw.info
-            ).unwrap())
+        self.attributes
+            .iter()
+            .map(|raw| {
+                self.class
+                    .create_attribute(raw.attribute_name_index, &raw.info)
+                    .unwrap()
+            })
             .collect::<Vec<_>>()
             .into_iter()
     }
@@ -143,7 +173,7 @@ impl Debug for Code<'_> {
 }
 
 /// Each entry in the exception table describes one exception handler in the code array.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Exception<'a> {
     start_pc: u16,
     end_pc: u16,
@@ -151,8 +181,25 @@ pub struct Exception<'a> {
     catch_type: Option<FullyQualifiedName<'a>>,
 }
 
+impl<'a> Exception<'a> {
+    /// The start bytecode for this exception handler
+    pub fn start_pc(&self) -> u16 {
+        self.start_pc
+    }
+    /// The end bytecode for this exception handler
+    pub fn end_pc(&self) -> u16 {
+        self.end_pc
+    }
 
-
+    /// The bytecode to go to if an exception is thrown
+    pub fn handler_pc(&self) -> u16 {
+        self.handler_pc
+    }
+    /// An optional catch type that the exception must be
+    pub fn catch_type(&self) -> Option<&FullyQualifiedName<'a>> {
+        self.catch_type.as_ref()
+    }
+}
 
 fn parse_code_attr<'a>(info: &'a [u8], class: &'a JavaClass) -> IResult<&'a [u8], Code<'a>> {
     map(
@@ -175,7 +222,7 @@ fn parse_code_attr<'a>(info: &'a [u8], class: &'a JavaClass) -> IResult<&'a [u8]
             max_stack,
             max_locals,
             code,
-            exception_table: exception_table.into_boxed_slice(),
+            exception_table: exception_table,
             attributes: attributes.into_boxed_slice(),
         },
     )(info)
@@ -199,9 +246,10 @@ fn parse_exception<'a>(bytes: &'a [u8], class: &'a JavaClass) -> IResult<&'a [u8
         },
     )(bytes)
 }
-
+/// Creates a correspondence between bytecodes and original line numbers
+#[derive(Clone)]
 pub struct LineNumberTable {
-    line_number_table: Box<[(u16, u16)]>
+    line_number_table: Box<[(u16, u16)]>,
 }
 
 impl LineNumberTable {

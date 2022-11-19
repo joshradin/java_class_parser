@@ -1,18 +1,26 @@
 mod signatures;
 
+use crate::attributes::Attribute;
+pub use class::*;
+pub use class_entries::*;
 pub use signatures::*;
 use std::fmt::{Debug, Display, Formatter};
-mod class_entries;
-use crate::attributes::Attribute;
-pub use class_entries::*;
+use std::path::Path;
 
 pub mod attributes;
-pub mod class;
+mod class;
+mod class_entries;
 
 /// A fully qualified name is a set of identifiers seperated by either `/` or `.`
-#[derive(Default, Eq, PartialEq, Hash)]
+#[derive(Default, Eq, PartialEq, Hash, Clone)]
 pub struct FullyQualifiedName<'a> {
     fcq: &'a str,
+}
+
+impl<'a> From<&'a Path> for  FullyQualifiedName<'a> {
+    fn from(path: &'a Path) -> Self {
+        FullyQualifiedName { fcq: path.to_str().unwrap() }
+    }
 }
 
 impl<S: AsRef<str>> PartialEq<S> for FullyQualifiedName<'_> {
@@ -42,6 +50,7 @@ impl Display for FullyQualifiedName<'_> {
 
 /// Objects which implement this trait can be queried for their attributes.
 pub trait HasAttributes {
+    /// The iterator that attributes are returned in
     type Iter<'a>: Iterator<Item = Attribute<'a>>
     where
         Self: 'a;

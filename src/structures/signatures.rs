@@ -1,16 +1,17 @@
-use nom::branch::alt;
-use nom::bytes::complete::{tag, take_till, take_while};
-use nom::character::{is_alphabetic, is_alphanumeric};
+
+use nom::bytes::complete::{tag, take_till};
+
 use nom::combinator::{eof, map};
-use nom::error::ErrorKind;
-use nom::multi::{many0, many1, separated_list1};
+
+use nom::multi::{many0};
 use nom::sequence::{delimited, preceded, tuple};
 use nom::IResult;
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
+
 
 /// A signature
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
+#[allow(missing_docs)]
 pub enum Signature<'a> {
     Boolean,
     Byte,
@@ -21,17 +22,22 @@ pub enum Signature<'a> {
     Float,
     Double,
     Void,
+    /// A fully qualified class
     FullyQualifiedClass(&'a str),
+    /// An array of some type
     Array(Box<Signature<'a>>),
+    /// A method
     Method {
+        /// The args for the method
         args: Box<[Signature<'a>]>,
+        /// The return type of the method
         ret_type: Box<Signature<'a>>,
     },
 }
 
 impl<'a> Signature<'a> {
     /// emits this signature as JNI
-    fn jni(&self) -> String {
+    pub fn jni(&self) -> String {
         match self {
             Signature::Boolean => "Z".to_string(),
             Signature::Byte => "B".to_string(),
@@ -58,7 +64,8 @@ impl<'a> Signature<'a> {
         }
     }
 
-    pub fn from_str(str: &'a str) -> Result<Self, nom::Err<nom::error::Error<String>>> {
+    /// Creates a new signature by parsing a string.
+    pub fn new(str: &'a str) -> Result<Self, nom::Err<nom::error::Error<String>>> {
         let (bytes, parsed) =
             parse_signature(str).map_err(|e: nom::Err<nom::error::Error<&str>>| e.to_owned())?;
         eof(bytes).map_err(|e: nom::Err<nom::error::Error<&str>>| e.to_owned())?;
@@ -154,7 +161,7 @@ mod tests {
     #[test]
     fn parse_jni_signature() {
         let jni = "(ZI)Ljava/lang/Object;";
-        let parsed = Signature::from_str(jni).expect("couldn't parse");
+        let parsed = Signature::new(jni).expect("couldn't parse");
         assert_eq!(
             parsed,
             Signature::Method {

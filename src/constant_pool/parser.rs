@@ -3,18 +3,19 @@ use crate::constant_pool::values::{
     Class, FieldRef, InterfaceMethodRef, MethodRef, NameAndType, Utf8,
 };
 use crate::constant_pool::{ConstantPool, ConstantPoolInfo};
-use crate::error::Error;
-use crate::error::ErrorKind;
-use crate::raw_java_class::{RawAttributeInfo, RawFieldInfo, RawJavaClass, RawMethodInfo};
-use crate::structures::class::JavaClass;
+
+
+pub use crate::raw_java_class::{RawAttributeInfo, RawFieldInfo, RawJavaClass, RawMethodInfo};
+
 use nom::bytes::complete::take;
-use nom::combinator::{eof, map};
+use nom::combinator::{map};
 use nom::error::ParseError;
 use nom::multi::count;
 use nom::number::complete::{be_u16, be_u32};
 use nom::number::streaming::be_u8;
 use nom::sequence::tuple;
-use nom::{multi, IResult, Parser};
+use nom::IResult;
+use nom::multi;
 
 fn parse_data_info<'a, E: ParseError<&'a [u8]>>(
     bytes: &'a [u8],
@@ -93,7 +94,7 @@ fn parse_constant_pool_info<'a, E: ParseError<&'a [u8]>>(
     } else {
         unreachable!()
     };
-    let mut parsed_ref_info = tuple((be_u16, be_u16));
+    let parsed_ref_info = tuple((be_u16, be_u16));
 
     match tag {
         CLASS_TAG => {
@@ -181,7 +182,7 @@ mod tests {
     use crate::raw_java_class::parse_class_file_bytes;
     use crate::utility::match_as;
     use nom::Finish;
-    use std::path::{Path, PathBuf};
+    use std::path::{PathBuf};
     use std::{env, fs};
 
     #[test]
@@ -199,9 +200,9 @@ mod tests {
     fn parse_class() {
         let file = PathBuf::new()
             .join(env::var("OUT_DIR").unwrap())
-            .join("com/example/Square.class");
+            .join("java/build/classes/java/main/com/example/Square.class");
         let bytes =
-            fs::read(&file).unwrap_or_else(|_| panic!("couldn't read bytes at path {:?}", file));
+            fs::read(&file).unwrap_or_else(|_| panic!("couldn't read bytes at path {:?} (exists = {})", file, file.exists()));
 
         let raw = parse_class_file_bytes(&bytes);
         match raw {

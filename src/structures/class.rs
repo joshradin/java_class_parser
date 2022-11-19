@@ -4,7 +4,7 @@ use crate::constant_pool::{ConstantPool, ConstantPoolInfo};
 use crate::raw_java_class::RawJavaClass;
 use crate::utility::match_as;
 use crate::{Field, FullyQualifiedName, HasAttributes, Method, Signature};
-use nom::bytes;
+
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
@@ -50,7 +50,7 @@ impl JavaClass {
         self.get_at_index(index)
             .and_then(|info| match_as!(utf; ConstantPoolInfo::Utf8(utf) = info))
             .map(|s| {
-                Signature::from_str(s.as_ref())
+                Signature::new(s.as_ref())
                     .unwrap_or_else(|e| panic!("{} is invalid as signature: {}", s, e))
             })
     }

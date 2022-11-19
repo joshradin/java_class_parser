@@ -1,9 +1,9 @@
 //! contains the raw definitions for the constant pool
 
-use crate::error::{Error, ErrorKind};
-use nom::bytes;
-use nom::bytes::complete::*;
-use nom::number::complete::be_u16;
+
+
+
+
 use std::ops::Index;
 use values::{
     Class, Double, FieldRef, Float, Integer, InterfaceMethodRef, InvokeDynamic, Long, MethodHandle,
@@ -33,6 +33,7 @@ pub mod cfg {
 
 /// The `cp_info` structure, represents in a constant
 #[derive(Debug, Clone)]
+#[allow(unused)]
 pub enum ConstantPoolInfo {
     Class(Class),
     FieldRef(FieldRef),

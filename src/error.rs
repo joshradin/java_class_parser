@@ -1,10 +1,11 @@
 //! Contains the error type that can be emitted
 
-use nom::error::ParseError;
+
 use nom::Needed;
 use std::backtrace::Backtrace;
 use std::fmt::{Debug, Display, Formatter};
 use std::io;
+use std::path::PathBuf;
 
 /// The error type
 #[derive(Debug)]
@@ -45,16 +46,30 @@ impl<E: Into<ErrorKind>> From<E> for Error {
 /// The error kind
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
+    /// No class could be found for a given path
+    #[error("No class found for path {0:?}")]
+    NoClassFound(PathBuf),
+    /// Encountered an unsupported classpath entry
+    #[error("Unsupported entry in classpath: {0:?}")]
+    UnsupportedEntry(PathBuf),
+    /// An unknown tag was found in the constant pool
     #[error("{0} is not a known constant pool tag")]
     UnknownConstantPoolInfoTag(u8),
+    /// An io error occurred
     #[error(transparent)]
     IoError(#[from] io::Error),
+    /// While parsing, some bytes were missing
     #[error("Missing {:?} bytes", 0)]
     MissingBytes(Needed),
+    /// A nom error occurred
     #[error(transparent)]
     NomError {
+        /// the nom error kind
         kind: nom::Err<nom::error::Error<Vec<u8>>>,
     },
+    /// A zip error occurred.
+    #[error(transparent)]
+    ZipError(#[from] zip::result::ZipError)
 }
 
 impl<'a> From<nom::Err<nom::error::Error<&'a [u8]>>> for ErrorKind {

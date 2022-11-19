@@ -2,7 +2,7 @@ use crate::attributes::Attribute;
 use crate::raw_java_class::{RawAttributeInfo, RawFieldInfo, RawMethodInfo};
 use crate::structures::class::JavaClass;
 use crate::utility::match_as;
-use crate::{ConstantPoolInfo, Signature};
+use crate::{ConstantPoolInfo, HasAttributes, Signature};
 
 /// A field in a class
 #[derive(Debug)]
@@ -20,6 +20,23 @@ impl<'a> Field<'a> {
                 &field_info.attributes,
             ),
         }
+    }
+
+    /// The name of the field
+    pub fn name(&self) -> &'a str {
+        self.entry.name
+    }
+    /// The signature of the field
+    pub fn signature(&self) -> &Signature<'a> {
+        &self.entry.signature
+    }
+}
+
+impl HasAttributes for Field<'_> {
+    type Iter<'a> = <Vec<Attribute<'a>> as IntoIterator>::IntoIter where Self: 'a;
+
+    fn attributes<'a>(&'a self) -> Self::Iter<'a> {
+        self.entry.attributes.clone().into_iter()
     }
 }
 
@@ -39,6 +56,23 @@ impl<'a> Method<'a> {
                 &method_info.attributes,
             ),
         }
+    }
+
+    /// The name of the method
+    pub fn name(&self) -> &'a str {
+        self.entry.name
+    }
+    /// The signature of the method
+    pub fn signature(&self) -> &Signature<'a> {
+        &self.entry.signature
+    }
+}
+
+impl HasAttributes for Method<'_> {
+    type Iter<'a> = <Vec<Attribute<'a>> as IntoIterator>::IntoIter where Self: 'a;
+
+    fn attributes<'a>(&'a self) -> Self::Iter<'a> {
+        self.entry.attributes.clone().into_iter()
     }
 }
 
@@ -76,4 +110,5 @@ impl<'a> Entry<'a> {
             attributes,
         }
     }
+
 }
