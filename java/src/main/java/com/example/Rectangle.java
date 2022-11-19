@@ -1,6 +1,6 @@
 package com.example;
 
-public class Rectangle {
+public class Rectangle implements Shape {
 
     private final double width;
     private final double length;
@@ -10,6 +10,7 @@ public class Rectangle {
         this.length = length;
     }
 
+    @Override
     public double getArea() {
         return width * length;
     }
