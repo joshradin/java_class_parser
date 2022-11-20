@@ -5,7 +5,7 @@ pub use class::*;
 pub use class_entries::*;
 pub use signatures::*;
 use std::fmt::{Debug, Display, Formatter};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub mod attributes;
 mod class;
@@ -17,9 +17,20 @@ pub struct FullyQualifiedName<'a> {
     fcq: &'a str,
 }
 
-impl<'a> From<&'a Path> for  FullyQualifiedName<'a> {
+impl<'a> FullyQualifiedName<'a> {
+    /// Gets the fully qualified name as a path
+    pub fn as_path(&self) -> PathBuf {
+        PathBuf::from_iter(
+            self.fcq.split("/")
+        )
+    }
+}
+
+impl<'a> From<&'a Path> for FullyQualifiedName<'a> {
     fn from(path: &'a Path) -> Self {
-        FullyQualifiedName { fcq: path.to_str().unwrap() }
+        FullyQualifiedName {
+            fcq: path.to_str().unwrap(),
+        }
     }
 }
 
@@ -57,4 +68,10 @@ pub trait HasAttributes {
 
     /// Gets the attributes associated with this value.
     fn attributes<'a>(&'a self) -> Self::Iter<'a>;
+
+    /// Attempts to get an attribute by attribute name
+    fn get_attribute(&self, name: &str) -> Option<Attribute> {
+        self.attributes()
+            .find(|att: &Attribute| att.attribute_name() == name)
+    }
 }

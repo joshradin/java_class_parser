@@ -25,6 +25,7 @@
 #![deny(unused)]
 #![deny(missing_docs)]
 
+use std::cell::RefCell;
 use crate::constant_pool::ConstantPoolInfo;
 
 use std::collections::{HashMap, HashSet};
@@ -49,8 +50,8 @@ pub use structures::*;
 #[derive(Debug, Default)]
 pub struct JavaClassParser {
     class_path: HashSet<PathBuf>,
-    cache: HashMap<PathBuf, JavaClass>,
-    open_zips: HashMap<PathBuf, ZipArchive<File>>
+    cache: RefCell<HashMap<PathBuf, JavaClass>>,
+    open_zips: RefCell<HashMap<PathBuf, ZipArchive<File>>>
 }
 
 impl JavaClassParser {
@@ -87,12 +88,12 @@ impl JavaClassParser {
     /// result in the `output/com/example/Square.java` file being parsed. This also works
     /// if a file on the classpath is a jar file.
     ///
-    pub fn find<P: AsRef<Path>>(&mut self, path: P) -> Result<&JavaClass, Error> {
-        if !self.cache.contains_key(path.as_ref()) {
+    pub fn find<P: AsRef<Path>>(&self, path: P) -> Result<JavaClass, Error> {
+        if !self.cache.borrow().contains_key(path.as_ref()) {
             let class = self.find_class(path.as_ref())?;
-            self.cache.insert(path.as_ref().to_path_buf(), class);
+            self.cache.borrow_mut().insert(path.as_ref().to_path_buf(), class);
         }
-        Ok(&self.cache[path.as_ref()])
+        Ok(self.cache.borrow()[path.as_ref()].clone())
     }
 
     /// Gets the classpath of the parser
@@ -102,7 +103,7 @@ impl JavaClassParser {
 
     /// scans through the classpath to find a file. In terms of complexity,
     /// directories are easiest.
-    fn find_class(&mut self, path: &Path) -> Result<JavaClass, Error> {
+    fn find_class(&self, path: &Path) -> Result<JavaClass, Error> {
         let cp = self.classpath().into_iter().map(|s| s.to_owned()).collect::<Vec<_>>();
         for entry in cp {
             if let Some(found) = self.find_class_in_entry(&entry, path)? {
@@ -114,7 +115,7 @@ impl JavaClassParser {
 
     /// find a file in a classpath entry. Returns Ok(Some()) if found, Ok(None) if not, and an error
     /// if an error occurred.
-    fn find_class_in_entry(&mut self, entry: &Path, path: &Path) -> Result<Option<JavaClass>, Error> {
+    fn find_class_in_entry(&self, entry: &Path, path: &Path) -> Result<Option<JavaClass>, Error> {
         if entry.is_file() {
             match entry.extension().and_then(|s| s.to_str()) {
                 Some("class") => {
@@ -126,8 +127,9 @@ impl JavaClassParser {
                     }
                 }
                 Some("jar") => {
+                    let mut open_zips = self.open_zips.borrow_mut();
                     let zip_archive =
-                        match self.open_zips.entry(entry.to_path_buf()) {
+                        match open_zips.entry(entry.to_path_buf()) {
                             Entry::Occupied(o) => {o.into_mut()}
                             Entry::Vacant(vac) => {
                                 let file = File::open(entry)?;
@@ -137,7 +139,7 @@ impl JavaClassParser {
 
                     println!("working with jar with files: {:?}", zip_archive.file_names().collect::<Vec<_>>());
                     let name = path.with_extension("class");
-                    match zip_archive.by_name(&name.to_string_lossy()) {
+                    let result = match zip_archive.by_name(&name.to_string_lossy()) {
                         Ok(archived) => {
                             parse_bytes(archived).map(|class| Some(class))
                         }
@@ -147,7 +149,8 @@ impl JavaClassParser {
                         Err(e) => {
                             Err(e.into())
                         }
-                    }
+                    };
+                    result
 
                 }
                 _ => Err(ErrorKind::UnsupportedEntry(entry.to_path_buf()).into())
@@ -163,6 +166,12 @@ impl JavaClassParser {
         } else {
             Err(ErrorKind::UnsupportedEntry(entry.to_path_buf()).into())
         }
+    }
+}
+
+impl<P : AsRef<Path>> From<P> for JavaClassParser {
+    fn from(p: P) -> Self {
+        Self::from_iter([p])
     }
 }
 
@@ -209,7 +218,7 @@ mod tests {
             .join(env::var("OUT_DIR").unwrap())
             .join("java.jar");
 
-        let mut parser = JavaClassParser::from_iter([file]);
+        let parser = JavaClassParser::from_iter([file]);
         let class = parser.find("com/example/Square").unwrap();
         assert_eq!(
             class.this(),
