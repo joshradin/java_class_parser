@@ -1,6 +1,6 @@
 [package]
 name = "java_class_parser"
-version = "0.0.1"
+version = "0.0.2"
 description = "provides a way of easily parsing and analyzing java classes"
 license.workspace = true
 authors.workspace = true
