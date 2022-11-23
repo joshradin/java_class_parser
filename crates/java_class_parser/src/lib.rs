@@ -33,6 +33,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 
+use java_classpaths::Classpath;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use zip::result::ZipError;
@@ -47,14 +48,12 @@ pub(crate) mod utility;
 
 use crate::error::{Error, ErrorKind};
 pub use structures::*;
-use structures::{AsFullyQualifiedName, FQName};
 
 /// Parses java classes from `.class` files. Produces a [`JavaClass`][crate::JavaClass] if successful.
 #[derive(Debug, Default)]
 pub struct JavaClassParser {
-    class_path: HashSet<PathBuf>,
+    class_path: Classpath,
     cache: RefCell<HashMap<FQNameBuf, JavaClass>>,
-    open_zips: RefCell<HashMap<PathBuf, ZipArchive<File>>>,
 }
 
 impl JavaClassParser {
@@ -73,6 +72,14 @@ impl JavaClassParser {
                 .split(";")
                 .map(|s| PathBuf::from(s))
                 .collect(),
+            ..Default::default()
+        }
+    }
+
+    /// Creates a new java class parser with an actual classpath
+    pub fn with_classpath<C: Into<Classpath>>(classpath: C) -> Self {
+        Self {
+            class_path: classpath.into(),
             ..Default::default()
         }
     }
@@ -123,71 +130,19 @@ impl JavaClassParser {
 
     /// Gets the classpath of the parser
     pub fn classpath(&self) -> impl Iterator<Item = &Path> {
-        self.class_path.iter().map(|p| p.as_ref())
+        (&self.class_path).into_iter()
     }
 
     /// scans through the classpath to find a file. In terms of complexity,
     /// directories are easiest.
     fn find_class(&self, path: &FQName) -> Result<JavaClass, Error> {
-        let cp = self
-            .classpath()
-            .into_iter()
-            .map(|s| s.to_owned())
-            .collect::<Vec<_>>();
-        for entry in cp {
-            if let Some(found) = self.find_class_in_entry(&entry, path)? {
-                return Ok(found);
+        let class_path = path.as_path().with_extension("class");
+        match self.class_path.get(class_path.to_str().unwrap()) {
+            Some(result) => {
+                let resource = result?;
+                parse_bytes(resource)
             }
-        }
-        Err(Error::from(ErrorKind::NoClassFound(path.to_fqname_buf())))
-    }
-
-    /// find a file in a classpath entry. Returns Ok(Some()) if found, Ok(None) if not, and an error
-    /// if an error occurred.
-    fn find_class_in_entry(
-        &self,
-        entry: &Path,
-        fq_name: &FQName,
-    ) -> Result<Option<JavaClass>, Error> {
-        if entry.is_file() {
-            match entry.extension().and_then(|s| s.to_str()) {
-                Some("class") => {
-                    let parsed = parse_file(entry)?;
-                    if parsed.this() == fq_name {
-                        Ok(Some(parsed))
-                    } else {
-                        Ok(None)
-                    }
-                }
-                Some("jar") => {
-                    let mut open_zips = self.open_zips.borrow_mut();
-                    let zip_archive = match open_zips.entry(entry.to_path_buf()) {
-                        Entry::Occupied(o) => o.into_mut(),
-                        Entry::Vacant(vac) => {
-                            let file = File::open(entry)?;
-                            vac.insert(ZipArchive::new(file)?)
-                        }
-                    };
-                    let name = fq_name.as_path().with_extension("class");
-                    let result = match zip_archive.by_name(&name.to_string_lossy()) {
-                        Ok(archived) => parse_bytes(archived).map(|class| Some(class)),
-                        Err(ZipError::FileNotFound) => Ok(None),
-                        Err(e) => Err(e.into()),
-                    };
-                    result
-                }
-                _ => Err(ErrorKind::UnsupportedEntry(entry.to_path_buf()).into()),
-            }
-        } else if entry.is_dir() {
-            let full_path = entry.join(fq_name).with_extension("class");
-            if full_path.exists() {
-                let read = parse_bytes(File::open(full_path)?)?;
-                Ok(Some(read))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Err(ErrorKind::UnsupportedEntry(entry.to_path_buf()).into())
+            None => Err(Error::from(ErrorKind::NoClassFound(path.to_fqname_buf()))),
         }
     }
 }
@@ -225,6 +180,12 @@ pub fn parse_bytes<R: Read>(mut read: R) -> Result<JavaClass, Error> {
 /// to a valid java class.
 ///
 /// > This is a wrapper over the [`JavaClassParser::parse_file`](JavaClassParser::parse_file) method.
+///
+/// # Examples
+/// ```no_run
+/// # use java_class_parser::parse_file;
+/// let class = parse_file("./target/classes/com/example/Class.class").expect("could not parse");
+/// ```
 pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<JavaClass, Error> {
     JavaClassParser::parse_file(path)
 }

@@ -8,12 +8,25 @@ use std::path::{Path, PathBuf};
 
 /// Gets an object as a fully qualified path
 pub trait AsFullyQualifiedName {
+    /// Turns this type into a fully qualified name
     fn as_fcq(&self) -> &FQName;
 }
 
 impl AsFullyQualifiedName for str {
     fn as_fcq(&self) -> &FQName {
         FQName::new(self)
+    }
+}
+
+impl AsFullyQualifiedName for &str {
+    fn as_fcq(&self) -> &FQName {
+        FQName::new(*self)
+    }
+}
+
+impl AsFullyQualifiedName for String {
+    fn as_fcq(&self) -> &FQName {
+        FQName::new(&*self)
     }
 }
 
@@ -44,6 +57,7 @@ impl FQName {
         Path::new(&self.fcq)
     }
 
+    /// Turns this FQName into an owned version.
     pub fn to_fqname_buf(&self) -> FQNameBuf {
         FQNameBuf {
             buf: self.fcq.to_string(),

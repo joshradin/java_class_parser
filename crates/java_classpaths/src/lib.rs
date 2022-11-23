@@ -1,7 +1,6 @@
 //! Allows for file system like access to java like classpaths
 //!
 
-use std::{io, vec};
 use std::collections::{vec_deque, VecDeque};
 use std::convert::Infallible;
 use std::ffi::{OsStr, OsString};
@@ -11,6 +10,7 @@ use std::io::{ErrorKind, Read};
 use std::ops::{Add, AddAssign};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::{io, vec};
 
 use cfg_if::cfg_if;
 use static_assertions::assert_impl_all;
@@ -100,20 +100,12 @@ impl Classpath {
             } else {
                 let ext = entry.extension();
                 match ext.and_then(|os| os.to_str()) {
-                    Some("jar") | Some("zip") => {
-                        match Self::get_in_archive(
-                            entry, stripped
-                        ) {
-                            Ok(Some(resource)) => {
-                                return Some(Ok(resource))
-                            }
-                            Ok(None) => { }
-                            Err(e) => {
-                                return Some(Err(e))
-                            }
-                        }
-                    }
-                    _ => { }
+                    Some("jar") | Some("zip") => match Self::get_in_archive(entry, stripped) {
+                        Ok(Some(resource)) => return Some(Ok(resource)),
+                        Ok(None) => {}
+                        Err(e) => return Some(Err(e)),
+                    },
+                    _ => {}
                 }
             }
         }
@@ -130,25 +122,19 @@ impl Classpath {
             Ok(mut entry) => {
                 let mut buffer = vec![];
                 entry.read_to_end(&mut buffer)?;
-                Ok(Some(
-                    Resource {
-                        kind: ResourceKind::ArchiveEntry(VecDeque::from(buffer)),
-                        url: Url::parse(
-                            &format!("jar:file:{archive}!{entry_path}", archive = archive_path.to_str().unwrap())
-                        ).unwrap()
-                    }
-                ))
+                Ok(Some(Resource {
+                    kind: ResourceKind::ArchiveEntry(VecDeque::from(buffer)),
+                    url: Url::parse(&format!(
+                        "jar:file:{archive}!{entry_path}",
+                        archive = archive_path.to_str().unwrap()
+                    ))
+                    .unwrap(),
+                }))
             }
-            Err(err) => {
-                match err {
-                    ZipError::FileNotFound => {
-                        Ok(None)
-                    }
-                    e => {
-                        Err(io::Error::new(ErrorKind::InvalidData, e))
-                    }
-                }
-            }
+            Err(err) => match err {
+                ZipError::FileNotFound => Ok(None),
+                e => Err(io::Error::new(ErrorKind::InvalidData, e)),
+            },
         };
         out
     }
@@ -311,8 +297,6 @@ impl AddAssign for Classpath {
     }
 }
 
-
-
 /// A classpath resource. This is some readable entry available on the classpath
 #[derive(Debug)]
 pub struct Resource {
@@ -347,9 +331,7 @@ impl io::Read for ResourceKind {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
             ResourceKind::Real(file) => file.read(buf),
-            ResourceKind::ArchiveEntry(old_buf) => {
-                old_buf.read(buf)
-            }
+            ResourceKind::ArchiveEntry(old_buf) => old_buf.read(buf),
         }
     }
 }

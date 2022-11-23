@@ -8,6 +8,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/java_class_parser/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/java_classpaths/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/java_classpaths/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/java_class_parser/examples" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

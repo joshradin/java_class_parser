@@ -12,7 +12,7 @@ fn main() {
     println!("cargo:rerun-if-changed=java/");
 
     let ref out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    let ref java_output_path = out_dir.join("../../java");
+    let ref java_output_path = out_dir.join("java");
     drop(std::fs::remove_dir_all(java_output_path));
     let mut options = CopyOptions::new();
     options.copy_inside = true;
@@ -36,4 +36,13 @@ fn main() {
         out_dir.join("java.jar"),
     )
     .expect("couldn't copy");
+
+    let ref classes_output_path = *out_dir.join("classes");
+    drop(std::fs::remove_dir_all(classes_output_path));
+    fs_extra::copy_items(
+        &[java_output_path.join("build/classes/java/main")],
+        classes_output_path,
+        &options,
+    )
+    .expect("couldn't copy classes");
 }

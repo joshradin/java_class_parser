@@ -128,14 +128,12 @@ pub fn inspect(class: &JavaClass, parser: &JavaClassParser) -> Result<Inheritanc
     stack.push(class.clone());
     while let Some(class) = stack.pop() {
         let super_class = match parser.find_super(&class) {
-            Ok(o) => {
-                Some(o)
-            }
+            Ok(o) => Some(o),
             Err(e) => {
                 if let ErrorKind::NoClassFound(_) = e.kind() {
                     None
                 } else {
-                    return Err(e)
+                    return Err(e);
                 }
             }
         };

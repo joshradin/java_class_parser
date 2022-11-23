@@ -1,7 +1,24 @@
 [workspace]
 members = ["crates/*"]
-package.license = "MIT or Apache 2.0"
+package.license = "MIT OR Apache-2.0"
 package.edition = "2021"
 package.authors = ["joshua radin <jradin16@gmail.com>"]
 package.repository = "https://github.com/joshradin/java_class_parser"
+
+[package]
+name = "java_utils"
+version = "0.0.2"
+description = "Provides different binaries that are useful for inspecting java projects"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "class-parser"
+
+[dependencies]
+clap = { version = "4.0.26", features = ["derive"] }
+java_class_parser = { version = "0.0.2", path = "crates/java_class_parser" }
+java_classpaths = { version = "0.0.2", path = "crates/java_classpaths" }
 

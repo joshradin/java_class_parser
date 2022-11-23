@@ -13,6 +13,7 @@ rust-version = "1.65"
 [dependencies]
 byteorder = "1.4.3"
 java-locator = "0.1.2"
+java_classpaths = { version = "0.0.2", path = "../java_classpaths" }
 nom = "7.1.1"
 petgraph = "0.6.2"
 thiserror = "1.0.37"

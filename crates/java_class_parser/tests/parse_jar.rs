@@ -1,6 +1,6 @@
-use std::path::Path;
 use java_class_parser::inheritance::inspect;
 use java_class_parser::JavaClassParser;
+use std::path::Path;
 
 #[test]
 fn parse_jar() {
@@ -23,8 +23,7 @@ fn parse_jar() {
         .expect("couldn't get parents")
         .into_iter()
         .map(|(class, _)| class.this().to_fqname_buf())
-        .collect::<Vec<_>>()
-        ;
+        .collect::<Vec<_>>();
     assert_eq!(parents, ["com/example/Rectangle", "com/example/Shape"]);
 }
 
